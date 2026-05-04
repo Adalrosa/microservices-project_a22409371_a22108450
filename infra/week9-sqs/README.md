@@ -19,7 +19,7 @@ The **Java/Spring code** (producer in `product-service`, consumer in `order-serv
 ## Usage
 
 ```bash
-cd infra/week10-sqs
+cd infra/week9-sqs
 terraform init
 terraform plan
 terraform apply

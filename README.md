@@ -403,7 +403,7 @@ The template also includes **optional AWS SQS** wiring for a shared **`product-e
 - **product-service** publishes a JSON `ProductCreated` event after a successful **`POST /products`** when `cloud.sqs.product-events.enabled=true`.
 - **order-service** long-polls the same queue URL and logs received events when `cloud.sqs.product-events-consumer.enabled=true`.
 
-Terraform for queues + DLQ lives in **`infra/week10-sqs/`**. The Week 10 course materials focus on **infrastructure** (queues, IAM, environment variables), not on implementing Java producers or consumers.
+Terraform for queues + DLQ lives in **`infra/week9-sqs/`**. The Week 10 course materials focus on **infrastructure** (queues, IAM, environment variables), not on implementing Java producers or consumers.
 
 ## Microservice Architecture
 
@@ -479,7 +479,7 @@ Each microservice follows a layered architecture pattern:
 - [ ] Configure deployment environments
 
 ### Week 11 - SQS (event-driven architecture, cloud focus)
-- [ ] Create SQS main queue and DLQ (Terraform in `infra/week10-sqs/`, or Console / CLI)
+- [ ] Create SQS main queue and DLQ (Terraform in `infra/week9-sqs/`, or Console / CLI)
 - [ ] Configure redrive policy and sensible visibility timeout / long polling
 - [ ] Grant IAM least privilege (`SendMessage` / `ReceiveMessage` / `DeleteMessage`, etc.)
 - [ ] Enable the template via `CLOUD_SQS_*` environment variables and verify logs end-to-end
