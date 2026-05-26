@@ -23,7 +23,20 @@
         <spring-cloud.version>2024.0.0</spring-cloud.version>
         <springdoc.version>2.6.0</springdoc.version>
         <mockito.version>5.14.2</mockito.version>
+        <aws.sdk.version>2.29.51</aws.sdk.version>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${aws.sdk.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
     
     <dependencies>
         <!-- Spring Boot Web -->
@@ -61,6 +74,12 @@
         <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
+        </dependency>
+
+        <!-- AWS SQS (optional; enabled via cloud.sqs.product-events.*) -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>sqs</artifactId>
         </dependency>
         
         <!-- Lombok -->

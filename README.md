@@ -219,12 +219,10 @@ cd api-gateway
 mvn spring-boot:run
 ```
 
-**Important:** Before starting the services, ensure Kafka is running:
+**Important:** Before starting the services, **Kafka must be running**. Otherwise you will see errors like *"Node 1 disconnected"* or *"Connection to node 1 (localhost:9092) could not be established"*. To start only Kafka and Zookeeper (recommended for local development):
 ```bash
-# Using Docker Compose (recommended)
-docker-compose up -d zookeeper kafka
-
-# Or install Kafka locally and start it
+docker-compose -f docker-compose.kafka.yml up -d
+# Wait a few seconds for Kafka to be ready, then start the services
 ```
 
 ### Option 2: Build and Run JAR Files
@@ -398,6 +396,15 @@ Order Service: Creates order → Publishes OrderCreatedEvent to Kafka
 Product Service: Consumes event → Updates product inventory
 ```
 
+### 3. Optional Amazon SQS (Week 10 – cloud lab)
+
+The template also includes **optional AWS SQS** wiring for a shared **`product-events`** queue:
+
+- **product-service** publishes a JSON `ProductCreated` event after a successful **`POST /products`** when `cloud.sqs.product-events.enabled=true`.
+- **order-service** long-polls the same queue URL and logs received events when `cloud.sqs.product-events-consumer.enabled=true`.
+
+Terraform for queues + DLQ lives in **`infra/week9-sqs/`**. The Week 10 course materials focus on **infrastructure** (queues, IAM, environment variables), not on implementing Java producers or consumers.
+
 ## Microservice Architecture
 
 Each microservice follows a layered architecture pattern:
@@ -471,11 +478,11 @@ Each microservice follows a layered architecture pattern:
 - [ ] Add automated testing
 - [ ] Configure deployment environments
 
-### Week 11 - SQS (Event-Driven Architecture)
-- [ ] Integrate SQS for messaging
-- [ ] Implement event-driven architecture
-- [ ] Create message producers and consumers
-- [ ] Handle asynchronous communication
+### Week 11 - SQS (event-driven architecture, cloud focus)
+- [ ] Create SQS main queue and DLQ (Terraform in `infra/week9-sqs/`, or Console / CLI)
+- [ ] Configure redrive policy and sensible visibility timeout / long polling
+- [ ] Grant IAM least privilege (`SendMessage` / `ReceiveMessage` / `DeleteMessage`, etc.)
+- [ ] Enable the template via `CLOUD_SQS_*` environment variables and verify logs end-to-end
 
 ### Week 12 - Ansible
 - [ ] Create Ansible playbooks
@@ -577,16 +584,39 @@ docker-compose down
 
 ## Troubleshooting
 
-### Kafka Connection Issues
+### "Node 1 disconnected" / "Connection to node 1 (localhost:9092) could not be established"
+This means **Kafka is not running** or not reachable. The application (order-service, product-service) expects a Kafka broker at `localhost:9092`.
+
+**Solution:**
+1. Start Kafka and Zookeeper with Docker:
+   ```bash
+   docker-compose -f docker-compose.kafka.yml up -d
+   ```
+2. Wait 10–20 seconds for Kafka to be ready, then start the microservices.
+3. If you still see the error, check that Kafka is running and that port 9092 is free:
+   ```bash
+   docker ps | grep kafka
+   # Kafka should be listening on 0.0.0.0:9092
+   ```
+
+### Bootstrap servers: use `localhost:9092`, not `kafka:9092`
+If you set `spring.kafka.bootstrap-servers` to **kafka:9092**, the app can only connect when it runs **inside Docker** (same network as the Kafka container). The hostname `kafka` does not exist on your machine.
+
+- **Running with Maven** (`mvn spring-boot:run`): use **localhost:9092** in `application.yml` (product-service, order-service). Start Kafka with `docker-compose -f docker-compose.kafka.yml up -d`.
+- **Running everything in Docker** (e.g. your Week 2 docker-compose): then use **kafka:9092** (or set `SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092` in the container environment).
+
+The project defaults are `localhost:9092` so that local development with Maven works.
+
+### Other Kafka connection issues
 If services cannot connect to Kafka:
 ```bash
 # Check if Kafka is running
 docker ps | grep kafka
 
 # Check Kafka logs
-docker-compose logs kafka
+docker-compose -f docker-compose.kafka.yml logs kafka
 
-# Verify Kafka is accessible
+# Verify Kafka is accessible (optional)
 telnet localhost 9092
 ```
 

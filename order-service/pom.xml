@@ -24,6 +24,7 @@
         <springdoc.version>2.6.0</springdoc.version>
         <micrometer.version>1.14.0</micrometer.version>
         <mockito.version>5.14.2</mockito.version>
+        <aws.sdk.version>2.29.51</aws.sdk.version>
     </properties>
     
     <dependencyManagement>
@@ -32,6 +33,13 @@
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
                 <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${aws.sdk.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -74,6 +82,12 @@
         <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
+        </dependency>
+
+        <!-- AWS SQS (optional; enabled via cloud.sqs.product-events-consumer.*) -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>sqs</artifactId>
         </dependency>
         
         <!-- OpenFeign -->
