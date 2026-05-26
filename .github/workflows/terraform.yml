@@ -24,7 +24,7 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: eu-west-1
+          aws-region: us-east-1
 
       - uses: hashicorp/setup-terraform@v3
         with:
