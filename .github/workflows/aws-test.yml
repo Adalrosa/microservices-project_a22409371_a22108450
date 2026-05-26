@@ -16,4 +16,4 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: eu-west-1
 
-      - run: aws sts get-caller-identitygit
+      - run: aws sts get-caller-identity
