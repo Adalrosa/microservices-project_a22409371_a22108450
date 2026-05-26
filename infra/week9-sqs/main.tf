@@ -16,6 +16,7 @@ resource "aws_sqs_queue" "product_events_dlq" {
   name                      = "${var.name_prefix}-product-events-dlq"
   message_retention_seconds = 1209600 # 14 days
   tags                      = var.tags
+  # ci-test tag added
 }
 
 resource "aws_sqs_queue" "product_events" {
@@ -26,6 +27,30 @@ resource "aws_sqs_queue" "product_events" {
 
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.product_events_dlq.arn
+    maxReceiveCount     = var.max_receive_count_before_dlq
+  })
+
+  tags = var.tags
+}
+# Fila de Erros FIFO
+resource "aws_sqs_queue" "product_events_dlq_fifo" {
+  name                        = "${var.name_prefix}-product-events-dlq.fifo"
+  fifo_queue                  = true
+  content_based_deduplication = true
+  message_retention_seconds   = 1209600
+  tags                        = var.tags
+}
+
+# Fila Principal FIFO
+resource "aws_sqs_queue" "product_events_fifo" {
+  name                        = "${var.name_prefix}-product-events.fifo"
+  fifo_queue                  = true
+  content_based_deduplication = true # Evita duplicados baseados no conteúdo
+  visibility_timeout_seconds  = 60
+  receive_wait_time_seconds   = 20
+
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.product_events_dlq_fifo.arn
     maxReceiveCount     = var.max_receive_count_before_dlq
   })
 
