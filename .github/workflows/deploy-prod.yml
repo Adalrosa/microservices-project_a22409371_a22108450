@@ -1,0 +1,9 @@
+jobs:
+  deploy-prod:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://example.com
+    steps:
+      - run: echo "Deploying to prod..."
