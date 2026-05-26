@@ -1,4 +1,14 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Building..."
+
   deploy-prod:
     needs: build
     runs-on: ubuntu-latest
