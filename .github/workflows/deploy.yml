@@ -1,0 +1,145 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: eu-central-1
+  ECR_REGISTRY: 930124786319.dkr.ecr.eu-central-1.amazonaws.com
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Test AWS login
+        run: aws sts get-caller-identity
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push catalog-service
+        run: |
+          docker build -t $ECR_REGISTRY/catalog-service:${{ github.sha }} services/catalog-service
+          docker push $ECR_REGISTRY/catalog-service:${{ github.sha }}
+          docker tag $ECR_REGISTRY/catalog-service:${{ github.sha }} $ECR_REGISTRY/catalog-service:latest
+          docker push $ECR_REGISTRY/catalog-service:latest
+
+      - name: Build and push order-service
+        run: |
+          docker build -t $ECR_REGISTRY/order-service:${{ github.sha }} services/order-service
+          docker push $ECR_REGISTRY/order-service:${{ github.sha }}
+          docker tag $ECR_REGISTRY/order-service:${{ github.sha }} $ECR_REGISTRY/order-service:latest
+          docker push $ECR_REGISTRY/order-service:latest
+
+      - name: Build and push notification-service
+        run: |
+          docker build -t $ECR_REGISTRY/notification-service:${{ github.sha }} services/notification-service
+          docker push $ECR_REGISTRY/notification-service:${{ github.sha }}
+          docker tag $ECR_REGISTRY/notification-service:${{ github.sha }} $ECR_REGISTRY/notification-service:latest
+          docker push $ECR_REGISTRY/notification-service:latest
+
+  terraform:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+
+      - name: Terraform Init
+        run: |
+          cd infrastructure/terraform/environments/prod
+          terraform init
+
+      - name: Terraform Apply
+        run: |
+          cd infrastructure/terraform/environments/prod
+          terraform state rm module.compute.aws_instance.app || true
+          terraform apply -auto-approve \
+            -lock=false \
+            -var="db_password=${{ secrets.DB_PASSWORD }}" \
+            -var="public_key=${{ secrets.EC2_PUBLIC_KEY }}"
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: terraform
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install Ansible
+        run: pip install ansible
+
+      - name: Install SSH tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openssh-client
+
+      - name: Generate inventory
+        run: |
+          EC2_IP=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=cloud-ecommerce-app" "Name=instance-state-name,Values=running" \
+            --query 'Reservations[0].Instances[0].PublicIpAddress' \
+            --output text)
+          RDS_ENDPOINT=$(aws rds describe-db-instances \
+            --db-instance-identifier cloud-ecommerce-db \
+            --query 'DBInstances[0].Endpoint.Address' \
+            --output text)
+          SQS_URL=$(aws sqs get-queue-url \
+            --queue-name cloud-ecommerce-order-created \
+            --query 'QueueUrl' \
+            --output text)
+          echo "EC2_IP=$EC2_IP"
+          echo "RDS_ENDPOINT=$RDS_ENDPOINT"
+          printf '[app_servers]\n%s ansible_user=ec2-user ansible_ssh_private_key_file=/tmp/key.pem\n\n[app_servers:vars]\necr_registry=%s\ndb_host=%s\ndb_user=dbadmin\ndb_password=%s\nsqs_queue_url=%s\n' "$EC2_IP" "${{ env.ECR_REGISTRY }}" "$RDS_ENDPOINT" "${{ secrets.DB_PASSWORD }}" "$SQS_URL" > /tmp/hosts.ini
+          cat /tmp/hosts.ini
+
+      - name: Run Ansible playbook
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+        run: |
+          echo "${{ secrets.EC2_PRIVATE_KEY }}" > /tmp/key.pem
+          chmod 600 /tmp/key.pem
+          ansible-playbook ansible/playbooks/deploy.yml \
+            -i /tmp/hosts.ini \
+            --private-key /tmp/key.pem

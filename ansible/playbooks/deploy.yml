@@ -1,0 +1,78 @@
+---
+- name: Configure EC2 and deploy services
+  hosts: app_servers
+  become: yes
+
+  vars:
+    ecr_region: "eu-central-1"
+
+  tasks:
+    - name: Update system packages
+      yum:
+        name: "*"
+        state: latest
+
+    - name: Install Docker
+      yum:
+        name: docker
+        state: present
+
+    - name: Start and enable Docker
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add ec2-user to docker group
+      user:
+        name: ec2-user
+        groups: docker
+        append: yes
+
+    - name: Install AWS CLI
+      yum:
+        name: awscli
+        state: present
+
+    - name: Login to ECR
+      shell: |
+        aws ecr get-login-password --region {{ ecr_region }} | \
+        docker login --username AWS --password-stdin {{ ecr_registry }}
+
+    - name: Run catalog-service
+      docker_container:
+        name: catalog-service
+        image: "{{ ecr_registry }}/catalog-service:latest"
+        state: started
+        restart_policy: always
+        ports:
+          - "8081:8081"
+        env:
+          DB_HOST: "{{ db_host }}"
+          DB_USER: "{{ db_user }}"
+          DB_PASSWORD: "{{ db_password }}"
+
+    - name: Run order-service
+      docker_container:
+        name: order-service
+        image: "{{ ecr_registry }}/order-service:latest"
+        state: started
+        restart_policy: always
+        ports:
+          - "8082:8082"
+        env:
+          DB_HOST: "{{ db_host }}"
+          DB_USER: "{{ db_user }}"
+          DB_PASSWORD: "{{ db_password }}"
+          SQS_QUEUE_URL: "{{ sqs_queue_url }}"
+
+    - name: Run notification-service
+      docker_container:
+        name: notification-service
+        image: "{{ ecr_registry }}/notification-service:latest"
+        state: started
+        restart_policy: always
+        ports:
+          - "8083:8083"
+        env:
+          SQS_QUEUE_URL: "{{ sqs_queue_url }}"
