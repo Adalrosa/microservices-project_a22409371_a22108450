@@ -1,0 +1,10 @@
+on:
+  push:
+    tags: [ 'v*' ]
+
+jobs:
+  product:
+    uses: ./.github/workflows/reusable-image.yml
+    with:
+      service: product-service
+    secrets: inherit
